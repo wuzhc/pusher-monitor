@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>欢迎页面-X-admin2.0</title>
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport"
+          content="width=device-width,user-scalable=yes, minimum-scale=0.4, initial-scale=0.8,target-densitydpi=low-dpi"/>
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon"/>
+    <link rel="stylesheet" href="./css/font.css">
+    <link rel="stylesheet" href="./css/xadmin.css">
+    <script type="text/javascript" src="https://cdn.bootcss.com/jquery/3.2.1/jquery.min.js"></script>
+    <script type="text/javascript" src="./lib/layui/layui.js" charset="utf-8"></script>
+    <script type="text/javascript" src="./js/xadmin.js"></script>
+    <!-- 让IE8/9支持媒体查询，从而兼容栅格 -->
+    <!--[if lt IE 9]>
+    <script src="https://cdn.staticfile.org/html5shiv/r29/html5.min.js"></script>
+    <script src="https://cdn.staticfile.org/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+</head>
+
+<body>
+<div class="x-nav">
+      <span class="layui-breadcrumb">
+        <a href="">首页</a>
+        <a href="">演示</a>
+        <a>
+          <cite>客户端订阅测试</cite></a>
+      </span>
+    <a class="layui-btn layui-btn-small" style="line-height:1.6em;margin-top:3px;float:right"
+       href="javascript:location.replace(location.href);" title="刷新">
+        <i class="layui-icon" style="line-height:30px">ဂ</i></a>
+</div>
+<div class="x-body">
+    <blockquote class="layui-elem-quote">
+        <span class="x-red">订阅之后，可以在“服务器推送”推送一条数据到指定频道，输出面板将输出推送的数据</span>
+    </blockquote>
+    <form class="layui-form">
+        <div class="layui-form-item">
+            <label for="protocol" class="layui-form-label">
+                <span class="x-red">*</span>协议
+            </label>
+            <div class="layui-input-inline">
+                <input type="text" id="protocol" name="protocol" required="" lay-verify="required"
+                       autocomplete="off" class="layui-input" value="ws://127.0.0.1:9999/ws" disabled>
+            </div>
+            <div class="layui-form-mid layui-word-aux">
+                <span class="x-red">*</span>websocket协议
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label"><span class="x-red">*</span>频道</label>
+            <div class="layui-input-block" id="channel-list">
+                <!--<input type="checkbox" name="like1[write]" lay-skin="primary" title="channel_1" checked="">-->
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">
+            </label>
+            <button class="layui-btn" lay-filter="add" lay-submit="">
+                订阅
+            </button>
+        </div>
+        <div class="layui-form-item layui-form-text">
+            <label for="recv-data" class="layui-form-label">
+                输出面板
+            </label>
+            <div class="layui-input-block">
+                <div id="recv-data" class="layui-textarea" style="height: 200px;overflow-y: auto"></div>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">
+            </label>
+            <button class="layui-btn layui-btn-danger" id="clear-all">
+                清空输出
+            </button>
+        </div>
+    </form>
+</div>
+</body>
+</html>
+<script>
+    layui.use(['form', 'layer'], function () {
+        $ = layui.jquery;
+        var form = layui.form
+            , layer = layui.layer;
+
+        //自定义验证规则
+        form.verify({});
+
+        var conn;
+        conn = new WebSocket('ws://127.0.0.1:9999/ws');
+        conn.onopen = function (e) {
+        };
+        conn.onmessage = function (evt) {
+            var messages = evt.data.split('\n');
+            for (var i = 0; i < messages.length; i++) {
+                var item = document.createElement("div");
+                item.innerText = messages[i];
+                appendLog(item);
+            }
+        };
+        conn.onclose = function (evt) {
+            var item = document.createElement("div");
+            item.innerHTML = "<b>Connection closed.</b>";
+            appendLog(item);
+        };
+
+
+        //监听提交
+        form.on('submit(add)', function (data) {
+            var ws = $("#protocol").val();
+            if (ws.length === 0) {
+                layer.msg("协议不能为空");
+                return false;
+            }
+
+            var channels = [];
+            $.each($('input:checkbox:checked'), function () {
+                channels.push($(this).val());
+            });
+            if (channels.length === 0) {
+                layer.msg("请选择需要订阅的频道");
+                return false;
+            }
+
+            layer.msg("订阅中...");
+
+            for (var k in channels) {
+                var data = {
+                    channel: channels[k],
+                    type: "subscribe"
+                };
+                conn.send(JSON.stringify(data))
+            }
+            return false;
+        });
+
+        (function () {
+            $.ajax({
+                url: "http://127.0.0.1:9999/set?a=getChannel",
+                method: "GET",
+                jsonType: "json",
+                success: function (resp) {
+                    if (resp.channels) {
+                        var html = '';
+                        for (var k in resp.channels) {
+                            html += '<input type="checkbox" name="channel[]" value="' + k + '" lay-skin="primary" title="' + k + '">';
+                        }
+                        $("#channel-list").html(html);
+                        form.render("checkbox")
+                    }
+                }
+            });
+        })();
+
+        $("#clear-all").on("click", function () {
+            $("#recv-data").html("");
+            layer.msg("清空完毕");
+            return false;
+        })
+    });
+
+    function appendLog(item) {
+        var log = document.getElementById("recv-data");
+        var doScroll = log.scrollTop > log.scrollHeight - log.clientHeight - 1;
+        log.appendChild(item);
+        if (doScroll) {
+            log.scrollTop = log.scrollHeight - log.clientHeight;
+        }
+    }
+</script>
